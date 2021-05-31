@@ -134,10 +134,13 @@ class FracNetTrainDataset(Dataset):
         public_id = self.public_id_list[idx]
         image_path = os.path.join(self.image_dir, f"{public_id}-image.nii.gz")
         label_path = os.path.join(self.label_dir, f"{public_id}-label.nii.gz")
-        image = nib.load(image_path)
-        label = nib.load(label_path)
-        image_arr = image.get_fdata().astype(np.float)
-        label_arr = label.get_fdata().astype(np.uint8)
+        img = sitk.ReadImage(image_path, sitk.sitkInt16)
+        label = sitk.ReadImage(label_path, sitk.sitkUInt8)
+
+        img_array = sitk.GetArrayFromImage(img)
+        label_array = sitk.GetArrayFromImage(label)
+
+        img_array = img_array.astype(np.float32)
 
         # calculate rois' centroids
         roi_centroids = self._get_roi_centroids(label_arr)
