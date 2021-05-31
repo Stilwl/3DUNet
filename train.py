@@ -69,8 +69,7 @@ if __name__ == '__main__':
         tsfm.Window(-200, 1000),
         tsfm.MinMaxNorm(-200, 1000)
     ]
-    save_path = os.path.join('./runs', args.save)
-    if not os.path.exists(save_path): os.makedirs(save_path)
+    save_path = args.save_model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # data info
     ds_train = FracNetTrainDataset(train_image_dir, train_label_dir,
