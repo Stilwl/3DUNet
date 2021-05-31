@@ -25,7 +25,7 @@ parser.add_argument("--val_image_dir", default = '/content/gdrive/Shareddrives/�
 parser.add_argument("--val_label_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-val-labels', required=False,
         help="The validation label nii directory.")
 parser.add_argument('--save',default='UNet',help='save path of trained model')
-parser.add_argument('--batch_size', type=list, default=2,help='batch size of trainset')
+parser.add_argument('--batch_size', type=int, default=2,help='batch size of trainset')
 
 # train
 parser.add_argument('--epochs', type=int, default=200, metavar='N',help='number of epochs to train (default: 200)')

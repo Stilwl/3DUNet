@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from skimage.measure import regionprops
 from torch.utils.data import DataLoader, Dataset
+import SimpleITK as sitk
 
 
 class FracNetTrainDataset(Dataset):
@@ -143,12 +144,12 @@ class FracNetTrainDataset(Dataset):
         img_array = img_array.astype(np.float32)
 
         # calculate rois' centroids
-        roi_centroids = self._get_roi_centroids(label_arr)
+        roi_centroids = self._get_roi_centroids(label_array)
 
         # crop rois
-        image_rois = [self._crop_roi(image_arr, centroid)
+        image_rois = [self._crop_roi(img_array, centroid)
             for centroid in roi_centroids]
-        label_rois = [self._crop_roi(label_arr, centroid)
+        label_rois = [self._crop_roi(label_array, centroid)
             for centroid in roi_centroids]
 
         if self.transforms is not None:
