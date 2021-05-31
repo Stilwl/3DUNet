@@ -81,7 +81,12 @@ if __name__ == '__main__':
     val_loader = FracNetTrainDataset.get_dataloader(ds_val, args.batch_size, False,
         num_workers)
     # model info
-    model = UNet(in_channels=1, out_channels=args.n_labels).to(device)
+    if args.weight is not None:
+        model = torch.load(args.weight).to(device)
+        log = logger.Train_Logger(save_path,"train_log",init=os.path.join(save_path,"train_log.csv"))
+    else:
+        model = UNet(in_channels=1, out_channels=args.n_labels).to(device)
+        log = logger.Train_Logger(save_path,"train_log")
 
     model.apply(weights_init.init_model)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -90,9 +95,7 @@ if __name__ == '__main__':
     loss = loss.DiceLoss()
     # loss = SoftDiceLoss()
 
-    log = logger.Train_Logger(save_path,"train_log")
-
-    best = [0,0] # 初始化最优模型的epoch和performance
+    best = [log.log.idxmax()['Val_dice_liver']+1, log.log.max()['Val_dice_liver']]
     trigger = 0  # early stop 计数器
     alpha = 0.4 # 深监督衰减系数初始值
     for epoch in range(1, args.epochs + 1):

@@ -16,6 +16,7 @@ parser.add_argument('--xy_down_scale', type=float, default=0.5, help='')
 parser.add_argument('--slice_down_scale', type=float, default=1.0, help='')
 
 # data in/out and dataset
+parser.add_argument('--weight', type=str, default=None, help='model init weight')
 parser.add_argument("--save_model", default='/content/gdrive/Shareddrives/课程实验/runs',
         help="Whether to save the trained model.")
 parser.add_argument("--train_image_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-train-images', required=False,
