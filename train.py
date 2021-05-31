@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
+import matplotlib.pyplot as plt
 import os
 import numpy as np
 from tqdm import tqdm
@@ -83,9 +83,10 @@ if __name__ == '__main__':
     # model info
     model = UNet(in_channels=1, out_channels=args.n_labels).to(device)
     if args.weight is not None:
-        model.load_state_dict(checkpoint['net']).to(device)
+        checkpoint = torch.load(args.weight)
+        model.load_state_dict(checkpoint['net'])
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        optimizer.load_state_dict(checkpoint['optimizer']).to(device)
+        optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
         log = logger.Train_Logger(save_path,"train_log",init=os.path.join(save_path,"train_log.csv"))
     else:
@@ -102,7 +103,7 @@ if __name__ == '__main__':
     best = [log.log.idxmax()['Val_dice_liver']+1, log.log.max()['Val_dice_liver']]
     trigger = 0  # early stop 计数器
     alpha = 0.4 # 深监督衰减系数初始值
-    for epoch in range(start_epoch, star_epoch + args.epochs + 1):
+    for epoch in range(start_epoch, start_epoch + args.epochs):
         common.adjust_learning_rate(optimizer, epoch, args)
         train_log = train(model, train_loader, optimizer, loss, args.n_labels, alpha)
         val_log = val(model, val_loader, loss, args.n_labels)
@@ -128,4 +129,8 @@ if __name__ == '__main__':
             if trigger >= args.early_stop:
                 print("=> early stopping")
                 break
-        torch.cuda.empty_cache()    
+        torch.cuda.empty_cache()
+    ax = log.log.plot(x='epoch', y='Val_dice_liver', grid=True, title='Val_dice_liver')
+    fig = ax.get_figure()
+    fig.savefig(os.path.join(save_path, 'fig.png'))
+    plt.show()
