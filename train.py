@@ -8,7 +8,8 @@ import os
 import numpy as np
 from tqdm import tqdm
 from collections import OrderedDict
-
+from dataset.fracnet_dataset import FracNetTrainDataset
+from dataset import transforms as tsfm
 import config
 from model.UNet import UNet
 from utils import loss, logger, metrics, common, weights_init
@@ -59,21 +60,26 @@ def train(model, train_loader, optimizer, loss_func, n_labels, alpha):
 
 if __name__ == '__main__':
     args = config.args
+    num_workers = 0
     train_image_dir = args.train_image_dir
     train_label_dir = args.train_label_dir
     val_image_dir = args.val_image_dir
     val_label_dir = args.val_label_dir
+    transforms = [
+        tsfm.Window(-200, 1000),
+        tsfm.MinMaxNorm(-200, 1000)
+    ]
     save_path = os.path.join('./runs', args.save)
     if not os.path.exists(save_path): os.makedirs(save_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # data info
     ds_train = FracNetTrainDataset(train_image_dir, train_label_dir,
         transforms=transforms)
-    train_loader = FracNetTrainDataset.get_dataloader(ds_train, batch_size, False,
+    train_loader = FracNetTrainDataset.get_dataloader(ds_train, args.batch_size, False,
         num_workers)
     ds_val = FracNetTrainDataset(val_image_dir, val_label_dir,
         transforms=transforms)
-    val_loader = FracNetTrainDataset.get_dataloader(ds_val, batch_size, False,
+    val_loader = FracNetTrainDataset.get_dataloader(ds_val, args.batch_size, False,
         num_workers)
     # model info
     model = UNet(in_channels=1, out_channels=args.n_labels).to(device)

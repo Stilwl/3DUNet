@@ -16,13 +16,13 @@ parser.add_argument('--xy_down_scale', type=float, default=0.5, help='')
 parser.add_argument('--slice_down_scale', type=float, default=1.0, help='')
 
 # data in/out and dataset
-parser.add_argument("--train_image_dir", default = 'content/gdrive/Shareddrives/课程实验/datasets/ribfrac-train-images',required=False,
+parser.add_argument("--train_image_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-train-images',required=False,
         help="The training image nii directory.")
-parser.add_argument("--train_label_dir", default = 'content/gdrive/Shareddrives/课程实验/datasets/ribfrac-train-labels',required=False,
+parser.add_argument("--train_label_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-train-labels',required=False,
         help="The training label nii directory.")
-parser.add_argument("--val_image_dir", default = 'content/gdrive/Shareddrives/课程实验/datasets/ribfrac-val-images', required=False,
+parser.add_argument("--val_image_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-val-images', required=False,
         help="The validation image nii directory.")
-parser.add_argument("--val_label_dir", default = 'content/gdrive/Shareddrives/课程实验/datasets/ribfrac-val-labels', required=False,
+parser.add_argument("--val_label_dir", default = '/content/gdrive/Shareddrives/课程实验/datasets/ribfrac-val-labels', required=False,
         help="The validation label nii directory.")
 parser.add_argument('--save',default='UNet',help='save path of trained model')
 parser.add_argument('--batch_size', type=list, default=2,help='batch size of trainset')
