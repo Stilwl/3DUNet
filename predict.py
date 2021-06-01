@@ -76,31 +76,26 @@ def _predict_single_image(model, dataloader, postprocess, prob_thresh,
             images, centers = sample
             images = images.cuda()
             output = model(images).sigmoid().cpu().numpy()
-            print(output.shape)
-            for j in range(2):
-                for i in range(len(centers)):
-                    center_x, center_y, center_z = centers[i]
-                    cur_pred_patch = pred[
-                        center_x - crop_size // 2:center_x + crop_size // 2,
-                        center_y - crop_size // 2:center_y + crop_size // 2,
-                        center_z - crop_size // 2:center_z + crop_size // 2
-                    ]
-                    pred[
-                        center_x - crop_size // 2:center_x + crop_size // 2,
-                        center_y - crop_size // 2:center_y + crop_size // 2,
-                        center_z - crop_size // 2:center_z + crop_size // 2
-                    ] = np.where(cur_pred_patch > 0, np.mean((output[i,j],
-                        cur_pred_patch), axis=0), output[i,j])
-                if j == 0:
-                  predd = pred
-                else:
-                  predd = torch.cat((torch.tensor(predd).unsqueeze(0),torch.tensor(pred).unsqueeze(0)),dim=0)
+            for i in range(len(centers)):
+                center_x, center_y, center_z = centers[i]
+                cur_pred_patch = pred[
+                    center_x - crop_size // 2:center_x + crop_size // 2,
+                    center_y - crop_size // 2:center_y + crop_size // 2,
+                    center_z - crop_size // 2:center_z + crop_size // 2
+                ]
+                pred[
+                    center_x - crop_size // 2:center_x + crop_size // 2,
+                    center_y - crop_size // 2:center_y + crop_size // 2,
+                    center_z - crop_size // 2:center_z + crop_size // 2
+                ] = np.where(cur_pred_patch > 0, np.mean((output[i,1],
+                    cur_pred_patch), axis=0), output[i,1])
+
 
     if postprocess:
-        predd = _post_process(predd, dataloader.dataset.image, prob_thresh,
+        pred = _post_process(pred, dataloader.dataset.image, prob_thresh,
             bone_thresh, size_thresh)
 
-    return predd
+    return pred
 
 
 def _make_submission_files(pred, image_id, affine):
