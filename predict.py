@@ -9,19 +9,21 @@ from scipy import ndimage
 from skimage.measure import label, regionprops
 from skimage.morphology import disk, remove_small_objects
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 
-from dataset.fracnet_dataset import FracNetInferenceDataset
+from dataset.test_dataset import TestDataset
 from dataset import transforms as tsfm
 from model.UNet import UNet
+import config
+from utils.common import test_collate_fn
 
 
-def _remove_low_probs(pred, prob_thresh):
+def post_process(pred, image, prob_thresh, bone_thresh, size_thresh):
+
+    # 去除低置信度预测
     pred = np.where(pred > prob_thresh, pred, 0)
 
-    return pred
-
-
-def _remove_spine_fp(pred, image, bone_thresh):
+    # 去除误报
     image_bone = image > bone_thresh
     image_bone_2d = image_bone.sum(axis=-1)
     image_bone_2d = ndimage.median_filter(image_bone_2d, 10)
@@ -41,11 +43,9 @@ def _remove_spine_fp(pred, image, bone_thresh):
         max_region.bbox[0]:max_region.bbox[2],
         max_region.bbox[1]:max_region.bbox[3]
     ] = max_region.convex_image > 0
+    pred = np.where(image_spine[..., np.newaxis], 0, pred)
 
-    return np.where(image_spine[..., np.newaxis], 0, pred)
-
-
-def _remove_small_objects(pred, size_thresh):
+    # 移除小连接区域
     pred_bin = pred > 0
     pred_bin = remove_small_objects(pred_bin, size_thresh)
     pred = np.where(pred_bin, pred, 0)
@@ -53,21 +53,7 @@ def _remove_small_objects(pred, size_thresh):
     return pred
 
 
-def _post_process(pred, image, prob_thresh, bone_thresh, size_thresh):
-
-    # remove connected regions with low confidence
-    pred = _remove_low_probs(pred, prob_thresh)
-
-    # remove spine false positives
-    pred = _remove_spine_fp(pred, image, bone_thresh)
-
-    # remove small connected regions
-    pred = _remove_small_objects(pred, size_thresh)
-
-    return pred
-
-
-def _predict_single_image(model, dataloader, postprocess, prob_thresh,
+def predict_single_image(model, dataloader, postprocess, prob_thresh,
         bone_thresh, size_thresh):
     pred = np.zeros(dataloader.dataset.image.shape)
     crop_size = dataloader.dataset.crop_size
@@ -92,18 +78,18 @@ def _predict_single_image(model, dataloader, postprocess, prob_thresh,
 
 
     if postprocess:
-        pred = _post_process(pred, dataloader.dataset.image, prob_thresh,
+        pred = post_process(pred, dataloader.dataset.image, prob_thresh,
             bone_thresh, size_thresh)
 
     return pred
 
 
-def _make_submission_files(pred, image_id, affine):
+def make_submission_files(pred, image_id, affine):
     pred_label = label(pred > 0).astype(np.int16)
     pred_regions = regionprops(pred_label, pred)
     pred_index = [0] + [region.label for region in pred_regions]
     pred_proba = [0.0] + [region.mean_intensity for region in pred_regions]
-    # placeholder for label class since classifaction isn't included
+    
     pred_label_code = [0] + [1] * int(pred_label.max())
     pred_image = nib.Nifti1Image(pred_label, affine)
     pred_info = pd.DataFrame({
@@ -117,39 +103,33 @@ def _make_submission_files(pred, image_id, affine):
 
 
 def predict(args):
+    if not os.path.exists(args.pred_dir): os.makedirs(args.pred_dir)
     num_workers = 0
-    batch_size = 2
-    postprocess = True if args.postprocess == "True" else False
-
-    model = UNet(in_channels=1, out_channels=2)
+    batch_size = 1
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = UNet(1, 2).to(device)
+    model = torch.nn.DataParallel(model, device_ids=[args.gpu])
     model.eval()
     if args.model_path is not None:
         model_weights = torch.load(args.model_path)
         model.load_state_dict(model_weights['net'])
-    model = nn.DataParallel(model).cuda()
 
-    transforms = [
-        tsfm.Window(-200, 1000),
-        tsfm.MinMaxNorm(-200, 1000)
-    ]
-
-    image_path_list = sorted([os.path.join(args.image_dir, file)
-        for file in os.listdir(args.image_dir) if "nii" in file])
+    image_path_list = sorted([os.path.join(args.test_data_path, file)
+        for file in os.listdir(args.test_data_path) if "nii" in file])
     image_id_list = [os.path.basename(path).split("-")[0]
         for path in image_path_list]
 
     progress = tqdm(total=len(image_id_list))
     pred_info_list = []
     for image_id, image_path in zip(image_id_list, image_path_list):
-        dataset = FracNetInferenceDataset(image_path, transforms=transforms)
-        dataloader = FracNetInferenceDataset.get_dataloader(dataset,
-            batch_size, num_workers)
-        pred_arr = _predict_single_image(model, dataloader, postprocess,
+        dataset = TestDataset(image_path, args)
+        dataloader = DataLoader(dataset=dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=test_collate_fn)
+        pred_arr = predict_single_image(model, dataloader, args.postprocess,
             args.prob_thresh, args.bone_thresh, args.size_thresh)
-        pred_image, pred_info = _make_submission_files(pred_arr, image_id,
+        pred_image, pred_info = make_submission_files(pred_arr, image_id,
             dataset.image_affine)
         pred_info_list.append(pred_info)
-        pred_path = os.path.join(args.pred_dir, f"{image_id}_pred.nii.gz")
+        pred_path = os.path.join(args.pred_dir, f"{image_id}-label.nii.gz")
         nib.save(pred_image, pred_path)
 
         progress.update()
@@ -160,27 +140,5 @@ def predict(args):
 
 
 if __name__ == "__main__":
-    import argparse
-
-
-    prob_thresh = 0.1
-    bone_thresh = 300
-    size_thresh = 100
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--image_dir", required=True,
-        help="The image nii directory.")
-    parser.add_argument("--pred_dir", required=True,
-        help="The directory for saving predictions.")
-    parser.add_argument("--model_path", default=None,
-        help="The PyTorch model weight path.")
-    parser.add_argument("--prob_thresh", default=0.1,
-        help="Prediction probability threshold.")
-    parser.add_argument("--bone_thresh", default=300,
-        help="Bone binarization threshold.")
-    parser.add_argument("--size_thresh", default=100,
-        help="Prediction size threshold.")
-    parser.add_argument("--postprocess", default="True",
-        help="Whether to execute post-processing.")
-    args = parser.parse_args()
+    args = config.args
     predict(args)
